@@ -1,0 +1,212 @@
+// template.c
+#include "template.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Struct-only Function Implementations
+int s_template_getA(T_Template t) { return t.a; }
+void s_template_setA(T_Template* t, int a) { t->a = a; }
+
+// Custom Function Implementations
+void f_template_custom(F_TEMPLATE_CUSTOM_PRM* prm, FunCall* call) {
+    TypeInstance* i = *(TypeInstance**)prm;
+    T_Template* t = (T_Template*)i->data;
+
+    printf("Template says: My 'a' is %d\n", t->a);
+
+    call->code = FUN_OK;
+}
+
+// Default Function Implementations
+void f_template_def_create(F_DEF_CREATE_PRM* prm, FunCall* call) {
+    T_Template* new_t = (T_Template*)malloc(sizeof(T_Template));
+    if (!new_t) {
+        call->code = FUN_ERR_INTERNAL;
+        return;
+    }
+    new_t->a = 0;
+
+    *prm = new_t;
+    call->code = FUN_OK;
+}
+
+void f_template_def_destroy(F_DEF_DESTROY_PRM* prm, FunCall* call) {
+    if (!prm || !*prm) {
+        call->code = FUN_ERR_INVALIDARGS;
+        return;
+    }
+
+    free(*prm);
+    *prm = NULL;
+    call->code = FUN_OK;
+}
+
+void f_template_def_tostring(F_DEF_TOSTRING_PRM* prm, FunCall* call) {
+    if (!prm || !prm->data || !prm->buffer || prm->buffer_length == 0) {
+        call->code = FUN_ERR_INVALIDARGS;
+        return;
+    }
+
+    T_Template* t = (T_Template*)prm->data;
+    snprintf(prm->buffer, prm->buffer_length, "Template(a:%d)", t->a);
+    call->code = FUN_OK;
+}
+
+void f_template_def_serialize(F_DEF_SERIALIZE_PRM* prm, FunCall* call) {
+    if (!prm || !prm->from || !prm->to) {
+        call->code = FUN_ERR_INVALIDARGS;
+        return;
+    }
+
+    T_Template* t = (T_Template*)prm->from;
+    if (!memory_block_ensurespaceforwrite(prm->to, sizeof(T_Template)) ||
+        !memory_block_write(prm->to, t, sizeof(T_Template))) {
+        call->code = FUN_ERR_INTERNAL;
+        return;
+    }
+
+    call->code = FUN_OK;
+}
+
+void f_template_def_deserialize(F_DEF_DESERIALIZE_PRM* prm, FunCall* call) {
+    if (!prm || !prm->to || !prm->from) {
+        call->code = FUN_ERR_INVALIDARGS;
+        return;
+    }
+
+    T_Template* t = (T_Template*)prm->to;
+    if (!memory_block_read(prm->from, t, sizeof(T_Template))) {
+        call->code = FUN_ERR_INTERNAL;
+        return;
+    }
+
+    call->code = FUN_OK;
+}
+
+void f_template_def_hassub(F_DEF_HASSUB_PRM* prm, FunCall* call) {
+    if (!prm || !prm->instance) {
+        call->code = FUN_ERR_INVALIDARGS;
+        return;
+    }
+
+    prm->ret = (t_gettypefromsub(prm->subID) == TID_TEMPLATE &&
+                t_getlocalsubfromsub(prm->subID) == V_LOCAL_SELF);
+
+    call->code = FUN_OK;
+}
+
+void f_template_def_getsub(F_DEF_GETSUB_PRM* prm, FunCall* call) {
+    if (!prm || !prm->instance) {
+        call->code = FUN_ERR_INVALIDARGS;
+        return;
+    }
+
+    if (t_gettypefromsub(prm->subID) == TID_TEMPLATE &&
+        t_getlocalsubfromsub(prm->subID) == V_LOCAL_SELF) {
+        prm->ret = prm->instance;
+    } else {
+        prm->ret = NULL;
+        call->code = FUN_ERR_SUBNOTFOUND;
+    }
+
+    call->code = FUN_OK;
+}
+
+// Handler Functions
+bool t_template_has_func(FunID id) {
+    LocalFunID local_id = t_getlocalfunfromfun(id);
+    TypeID type_id = t_gettypefromfun(id);
+
+    if (type_id == T_NULL) {
+        return (local_id == FID_LOCAL_DEF_CREATE ||
+                local_id == FID_LOCAL_DEF_DESTROY ||
+                local_id == FID_LOCAL_DEF_TOSTRING ||
+                local_id == FID_LOCAL_DEF_SERIALIZE ||
+                local_id == FID_LOCAL_DEF_DESERIALIZE ||
+                local_id == FID_LOCAL_DEF_HASSUB ||
+                local_id == FID_LOCAL_DEF_GETSUB);
+    } else if (type_id == TID_TEMPLATE) {
+        return (local_id == FID_LOCAL_TEMPLATE_CUSTOM);
+    }
+
+    return false;
+}
+
+void t_template_call_func(FunCall* call) {
+    LocalFunID local_id = t_getlocalfunfromfun(call->target);
+    TypeID type_id = t_gettypefromfun(call->target);
+
+    if (type_id == T_NULL) {
+        switch (local_id) {
+            case FID_LOCAL_DEF_CREATE:
+                f_template_def_create((F_DEF_CREATE_PRM*)call->argstruct, call);
+                break;
+            case FID_LOCAL_DEF_DESTROY:
+                f_template_def_destroy((F_DEF_DESTROY_PRM*)call->argstruct, call);
+                break;
+            case FID_LOCAL_DEF_TOSTRING:
+                f_template_def_tostring((F_DEF_TOSTRING_PRM*)call->argstruct, call);
+                break;
+            case FID_LOCAL_DEF_SERIALIZE:
+                f_template_def_serialize((F_DEF_SERIALIZE_PRM*)call->argstruct, call);
+                break;
+            case FID_LOCAL_DEF_DESERIALIZE:
+                f_template_def_deserialize((F_DEF_DESERIALIZE_PRM*)call->argstruct, call);
+                break;
+            case FID_LOCAL_DEF_HASSUB:
+                f_template_def_hassub((F_DEF_HASSUB_PRM*)call->argstruct, call);
+                break;
+            case FID_LOCAL_DEF_GETSUB:
+                f_template_def_getsub((F_DEF_GETSUB_PRM*)call->argstruct, call);
+                break;
+            default:
+                call->code = FUN_ERR_FUNNOTFOUND;
+        }
+    } else if (type_id == TID_TEMPLATE) {
+        switch (local_id) {
+            case FID_LOCAL_TEMPLATE_CUSTOM:
+                f_template_custom((F_TEMPLATE_CUSTOM_PRM*)call->argstruct, call);
+                break;
+            default:
+                call->code = FUN_ERR_FUNNOTFOUND;
+        }
+    } else {
+        call->code = FUN_ERR_FUNNOTFOUND;
+    }
+}
+
+void t_template_register() {
+    TypeDefinition def = {
+        .id = TID_TEMPLATE,
+        .name = "Template",
+        .has_func = t_template_has_func,
+        .call_func = t_template_call_func
+    };
+    t_typedef_register(def);
+}
+
+// Function Wrappers
+void fw_template_custom(TypeInstance* inst) {
+    F_TEMPLATE_CUSTOM_PRM prm = fw_def_getsub(inst, t_formsub(TID_TEMPLATE, V_LOCAL_SELF), true);
+    if (prm == NULL) {
+        printf("Error: Template instance is NULL.\n");
+        return;
+    }
+
+    FunCall call = {0};
+    call.code = FUN_OK;
+    call.target = FID_TEMPLATE_CUSTOM;
+    call.argstruct = &prm;
+
+    t_typeinstance_callfunc(TID_TEMPLATE, &call);
+}
+
+T_Template* fw_template_getself(TypeInstance* inst) {
+    TypeInstance* self = fw_def_getsub(inst, t_formsub(TID_TEMPLATE, V_LOCAL_SELF), true);
+    if (!self) {
+        printf("Error: Template instance is NULL.\n");
+        return NULL;
+    }
+    return (T_Template*)self->data;
+}
