@@ -92,7 +92,8 @@ bool memory_block_ensurespaceforwrite(MemoryBlock* block, size_t size) {
 }
 
 bool memory_block_write(MemoryBlock* block, const void* data, size_t size) {
-	if (!memory_block_lazy_init_data(block) || !data || block->cursor + size > block->capacity) return false;
+	
+	if (!memory_block_ensurespaceforwrite(block, size) || !data || block->cursor + size > block->capacity) return false;
 	memcpy(block->data + block->cursor, data, size);
 	block->cursor += size;
 	return true;

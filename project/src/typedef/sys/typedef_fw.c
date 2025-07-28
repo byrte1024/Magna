@@ -46,7 +46,7 @@ void fw_def_tostring(TypeInstance* instance, char* buffer, size_t buffer_length)
         return;
     }
 
-    F_DEF_TOSTRING_PRM prm = { instance->data, buffer, buffer_length };
+    F_DEF_TOSTRING_PRM prm = { .data= instance, .buffer= buffer, .buffer_length = buffer_length };
     FunCall call = { .code = FUN_OK, .target = FID_DEF_TOSTRING, .argstruct = &prm };
     t_typeinstance_callfunc(instance->id,&call);
 }

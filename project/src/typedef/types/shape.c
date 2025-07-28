@@ -19,7 +19,7 @@ void s_shape_setH(T_Shape* shape, int h) { shape->h = h; }
 // Custom Function Implementations
 void f_shape_sayhi(F_SHAPE_SAYHI_PRM* prm, FunCall* call) {
     TypeInstance* i = *(TypeInstance**)prm;
-    T_Shape* shape = (T_Shape*)i->data;
+    T_Shape* shape = fw_shape_getself(i);
 
     printf("Hi, I'm a good little shape! (x:%d, y:%d, w:%d, h:%d)\n", shape->x, shape->y, shape->w, shape->h);
 
@@ -60,7 +60,7 @@ void f_shape_def_tostring(F_DEF_TOSTRING_PRM* prm, FunCall* call) {
         call->code = FUN_ERR_INVALIDARGS;
         return;
     }
-    T_Shape* shape = (T_Shape*)prm->data;
+    T_Shape* shape = fw_shape_getself(prm->data);
     snprintf(prm->buffer, prm->buffer_length, "Shape(x:%d, y:%d, w:%d, h:%d)",shape->x, shape->y, shape->w, shape->h);
 
     call->code = FUN_OK;
@@ -72,10 +72,6 @@ void f_shape_def_serialize(F_DEF_SERIALIZE_PRM* prm, FunCall* call) {
         return;
     }
     T_Shape* shape = (T_Shape*)prm->from;
-    if (!memory_block_ensurespaceforwrite(prm->to, sizeof(T_Shape))) {
-        call->code = FUN_ERR_INTERNAL;
-        return;
-    }
     if (!memory_block_write(prm->to, shape, sizeof(T_Shape))) {
         call->code = FUN_ERR_INTERNAL;
         return;
@@ -214,7 +210,7 @@ void t_shape_register() {
 
 void fw_shape_sayhi(TypeInstance* shape) {
 
-    F_SHAPE_SAYHI_PRM prm = fw_def_getsub(shape, t_formsub(TID_SHAPE, V_LOCAL_SELF),true);
+    F_SHAPE_SAYHI_PRM prm = shape;
     if(prm == NULL){
         printf("Error: Shape instance is NULL.\n");
         return;
@@ -223,7 +219,7 @@ void fw_shape_sayhi(TypeInstance* shape) {
     call.code = FUN_OK;
     call.target = FID_SHAPE_SAYHI;
     call.argstruct = &prm;
-    t_typeinstance_callfunc(TID_SHAPE, &call);
+    t_typeinstance_callfunc(shape->id, &call);
 }
 
 T_Shape* fw_shape_getself(TypeInstance* shape){

@@ -121,29 +121,29 @@ typedef struct FunCall {
 typedef void* F_DEF_CREATE_PRM;
 typedef void* F_DEF_DESTROY_PRM;
 
-typedef struct {
-    void* data;
+typedef struct F_DEF_TOSTRING_PRM {
+    TypeInstance* data;
     char* buffer;
     size_t buffer_length;
 } F_DEF_TOSTRING_PRM;
 
-typedef struct {
+typedef struct F_DEF_SERIALIZE_PRM {
     void* from;
     MemoryBlock* to;
 } F_DEF_SERIALIZE_PRM;
 
-typedef struct {
+typedef struct F_DEF_DESERIALIZE_PRM {
     void* to;
     MemoryBlock* from;
 } F_DEF_DESERIALIZE_PRM;
 
-typedef struct {
+typedef struct F_DEF_GETSUB_PRM {
     TypeInstance* instance;
     SubID subID;
     TypeInstance* ret;
 } F_DEF_GETSUB_PRM;
 
-typedef struct {
+typedef struct F_DEF_HASSUB_PRM {
     TypeInstance* instance;
     SubID subID;
     bool ret;
@@ -155,7 +155,7 @@ struct TypeDefinition {
     char* name;
     bool (*has_func)(FunID id);
     void (*call_func)(FunCall* call);
-};
+} ;
 
 struct TypeInstance {
     TypeID id;
