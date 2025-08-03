@@ -4,14 +4,13 @@ setlocal ENABLEDELAYEDEXPANSION
 REM === Argument Checking ===
 if "%~1"=="" (
     echo.
-    echo [!] Usage: compile.bat [release^|debug] [true^|false]
+    echo [!] Usage: %~nx0 [release^|debug] [true^|false]
     echo.
     exit /b 1
 )
-
 if "%~2"=="" (
     echo.
-    echo [!] Usage: compile.bat [release^|debug] [true^|false]
+    echo [!] Usage: %~nx0 [release^|debug] [true^|false]
     echo.
     exit /b 1
 )
@@ -26,7 +25,6 @@ if /I not "%BUILD_TYPE%"=="release" if /I not "%BUILD_TYPE%"=="debug" (
     echo.
     exit /b 1
 )
-
 if /I not "%RUN_AFTER%"=="true" if /I not "%RUN_AFTER%"=="false" (
     echo.
     echo [ERROR] Invalid run option: "%RUN_AFTER%"
@@ -35,16 +33,22 @@ if /I not "%RUN_AFTER%"=="true" if /I not "%RUN_AFTER%"=="false" (
     exit /b 1
 )
 
-REM === Set Directories and Flags ===
+REM === MSYS2 / Raylib Settings ===
+REM Adjust this if your MSYS2 is elsewhere:
+set "MSYS2_DIR=C:\msys64"
+set "RAYLIB_INC=%MSYS2_DIR%\mingw64\include"
+set "RAYLIB_LIB=%MSYS2_DIR%\mingw64\lib"
+
+REM === Build Flags ===
 if /I "%BUILD_TYPE%"=="debug" (
     set "OUT_DIR=build\debug"
-    set "CFLAGS=-g -O0 -Wall -Wextra"
-    set "LDFLAGS=-g"
+    set "CFLAGS=-g -O0 -Wall -Wextra -I"%RAYLIB_INC%""
+    set "LDFLAGS=-g -L"%RAYLIB_LIB%" -lraylib -lopengl32 -lgdi32 -lwinmm -lkernel32"
     echo [*] Build Mode: DEBUG
 ) else (
     set "OUT_DIR=build\release"
-    set "CFLAGS=-O2"
-    set "LDFLAGS="
+    set "CFLAGS=-O2 -I"%RAYLIB_INC%""
+    set "LDFLAGS=-L"%RAYLIB_LIB%" -lraylib -lopengl32 -lgdi32 -lwinmm -lkernel32"
     echo [*] Build Mode: RELEASE
 )
 
@@ -58,16 +62,12 @@ if exist "%OUT_DIR%\data" (
     echo [*] Deleting old data folder...
     rd /s /q "%OUT_DIR%\data"
 )
-
 if exist "project\data" (
     echo [*] Copying data files...
     xcopy /E /I /Y "project\data" "%OUT_DIR%\data" >nul
 )
 
-
-
-
-REM === Find .c files ===
+REM === Gather .c Sources ===
 set "SOURCES="
 for /R ".\project\src" %%f in (*.c) do (
     set "SOURCES=!SOURCES! "%%f""
@@ -75,15 +75,11 @@ for /R ".\project\src" %%f in (*.c) do (
 
 set "EXE=%OUT_DIR%\program.exe"
 
-REM === Compile ===
+REM === Compile Icon Resource ===
 echo.
 echo ============================================
-echo            Compiling Source Files           
+echo            Compiling Icon Resource         
 echo ============================================
-echo.
-
-REM === Compile resource file ===
-echo [*] Compiling icon resource...
 windres "project\src\icon.rc" -O coff -o "%OUT_DIR%\icon.res"
 if errorlevel 1 (
     echo.
@@ -92,7 +88,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
-
+REM === Compile & Link ===
+echo.
+echo ============================================
+echo          Compiling And Linking Source        
+echo ============================================
 gcc %CFLAGS% !SOURCES! %LDFLAGS% "%OUT_DIR%\icon.res" -o "!EXE!"
 if errorlevel 1 (
     echo.
@@ -101,24 +101,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
-
 echo.
-echo [v/] Compilation successful!
-echo [*] Executable: "!EXE!"
+echo [v/] Build successful: "!EXE!"
 echo.
 
 REM === Run If Requested ===
 if /I "%RUN_AFTER%"=="true" (
-
     echo ============================================
     echo               Executing Program            
     echo ============================================
-    echo.
-
     if /I "%BUILD_TYPE%"=="debug" (
-        start "GDB Debugger" cmd  /c  gdb -tui -ex "set pagination off" -ex run -ex quit --args "!EXE!"
+        start "GDB Debugger" cmd /c gdb -tui -ex "set pagination off" -ex run -ex quit --args "!EXE!"
     ) else (
-        start "Program Execution" "!EXE!"
+        start "" "!EXE!"
     )
 )
 

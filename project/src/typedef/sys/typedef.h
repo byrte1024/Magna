@@ -9,6 +9,10 @@
 #include "../../util.h"
 #include "../../memoryBlock.h"
 
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+
 /*
 FOR ANYONE READING THIS SCRIPT
 
@@ -60,6 +64,8 @@ Also, this is not thread-safe, do NOT try to multithread with this, its not feas
 
 */
 
+
+
 #define TYPE_SYSTEM_LONGNAME "C Type System"
 #define TYPE_SYSTEM_SHORTNAME "CTS"
 
@@ -75,16 +81,17 @@ typedef uint32_t FunID;
 
 #define I_NULL (TypeInstance){0}
 
-static inline SubID t_formsub(TypeID typeID, LocalSubID localSubID) { return (typeID << 16) | localSubID; }
-static inline LocalSubID t_getlocalsubfromsub(SubID subID) { return subID & 0xFFFF; }
-static inline TypeID t_gettypefromsub(SubID subID) { return subID >> 16; }
+#define t_formsub(typeID, localSubID)     (((typeID) << 16) | (localSubID))
+#define t_getlocalsubfromsub(subID)       ((subID) & 0xFFFF)
+#define t_gettypefromsub(subID)           ((subID) >> 16)
 
-static inline FunID t_formfun(TypeID typeID, LocalFunID localFunID) { return (typeID << 16) | localFunID; }
-static inline LocalFunID t_getlocalfunfromfun(FunID funID) { return funID & 0xFFFF; }
-static inline TypeID t_gettypefromfun(FunID funID) { return funID >> 16; }
+#define t_formfun(typeID, localFunID)     (((typeID) << 16) | (localFunID))
+#define t_getlocalfunfromfun(funID)       ((funID) & 0xFFFF)
+#define t_gettypefromfun(funID)           ((funID) >> 16)
 
 typedef struct TypeDefinition TypeDefinition;
 typedef struct TypeInstance TypeInstance;
+typedef struct InstanceReference InstanceReference;
 
 typedef struct FunCall {
     FunID target;
@@ -98,6 +105,7 @@ typedef struct FunCall {
 #define FUN_ERR_INVALIDARGS       0x3
 #define FUN_ERR_INTERNAL          0x4
 #define FUN_ERR_SUBNOTFOUND       0x5
+
 
 // Function IDs
 #define FID_LOCAL_DEF_CREATE       0x0001
@@ -118,8 +126,13 @@ typedef struct FunCall {
 #define FID_DEF_GETSUB       t_formfun(T_NULL,FID_LOCAL_DEF_GETSUB)
 #define FID_DEF_HASSUB       t_formfun(T_NULL,FID_LOCAL_DEF_HASSUB)
 
-typedef void* F_DEF_CREATE_PRM;
-typedef void* F_DEF_DESTROY_PRM;
+typedef struct F_DEF_CREATE_PRM {
+    TypeInstance* ret;
+} F_DEF_CREATE_PRM;
+
+typedef struct F_DEF_DESTROY_PRM {
+    TypeInstance* ptr;
+} F_DEF_DESTROY_PRM;
 
 typedef struct F_DEF_TOSTRING_PRM {
     TypeInstance* data;
@@ -160,6 +173,12 @@ struct TypeDefinition {
 struct TypeInstance {
     TypeID id;
     void* data;
+    size_t references;
+};
+
+struct InstanceReference {
+    TypeInstance* ptr;
+    //uint16_t refid;
 };
 
 extern bool definition_bank_lock;
@@ -171,6 +190,7 @@ void t_typedef_lock();
 bool t_typeinstance_hasfunc(TypeID id, FunID fun);
 void t_typeinstance_callfunc(TypeID id,FunCall* call);
 
+
 static inline bool t_typedef_exists(TypeID id) {
     return (id != T_NULL && definition_bank[id].id == id);
 }
@@ -180,3 +200,78 @@ static inline bool t_typedef_id_valid(TypeID id) {
 static inline bool t_typeinstance_isvalid(TypeInstance* instance) {
     return (instance != NULL && instance->id != T_NULL && instance->data != NULL);
 }
+
+#define R_NULL (InstanceReference){.ptr = NULL}
+
+// Usage:
+// DEF_FUN(Name, TypeName, LocalID, struct { ... })
+//
+// Expands to:
+//   #define FID_LOCAL_TypeName_Name LocalID
+//   #define FID_TypeName_Name t_formfun(T_TypeName, FID_LOCAL_TypeName_Name)
+//   typedef struct F_TypeName_Name_PRM { ... } F_TypeName_Name_PRM;
+
+#define DEF_FUN(Name, TypeName, LocalID, StructBody)   \
+    enum { FID_LOCAL_##TypeName##_##Name = LocalID }; \
+    enum { FID_##TypeName##_##Name = t_formfun(T_##TypeName, FID_LOCAL_##TypeName##_##Name) }; \
+    typedef struct F_##TypeName##_##Name##_PRM { StructBody } F_##TypeName##_##Name##_PRM
+
+
+// Usage:
+// IMP_FUN(Name, TypeName)
+//
+// Expands to:
+// void f_typename_imp_name(F_Name_PRM* prm, char* code);
+
+#define IMP_FUN(Name, TypeName)                                  \
+    void f_##TypeName##_imp_##Name(F_##Name##_PRM* prm, char* code)
+
+    
+
+#define BEGIN_TYPE_FUNCTIONS(TypeName) \
+    static TypeFunctionEntry TypeName##_function_table[] = {
+
+#define TYPE_FUNCTION(Name,TypeName) \
+    { FID_##Name, (TypeFunctionCallback)f_##TypeName##_imp_##Name },
+
+#define END_TYPE_FUNCTIONS(TypeName) \
+    }; \
+    static bool TypeName##_has_func(FunID id) { \
+        for (size_t i = 0; i < sizeof(TypeName##_function_table)/sizeof(TypeFunctionEntry); ++i) { \
+            if (TypeName##_function_table[i].id == id) return true; \
+        } \
+        return false; \
+    } \
+    static void TypeName##_call_func(FunCall* call) { \
+        for (size_t i = 0; i < sizeof(TypeName##_function_table)/sizeof(TypeFunctionEntry); ++i) { \
+            if (TypeName##_function_table[i].id == call->target) { \
+                TypeName##_function_table[i].callback(call->argstruct,&call->code); \
+                return; \
+            } \
+        } \
+        call->code = FUN_ERR_FUNNOTFOUND; \
+    } \
+    static void* TypeName##_get_self_struct(TypeInstance* i){ \
+       TypeInstance* ii = i_getself(i,T_##TypeName); \
+       if(ii==NULL){return NULL;} \
+       return ii->data; \
+    } \
+
+    #define REGISTER_TYPE(TypeName, DisplayName) \
+    static void register_##TypeName##_type() { \
+        TypeDefinition def = { \
+            .id = T_##TypeName, \
+            .name = DisplayName, \
+            .has_func = TypeName##_has_func, \
+            .call_func = TypeName##_call_func \
+        }; \
+        t_typedef_register(def); \
+    }
+
+
+    typedef void (*TypeFunctionCallback)(void* argstruct,char* code);
+
+    typedef struct {
+        FunID id;
+        TypeFunctionCallback callback;
+    } TypeFunctionEntry;

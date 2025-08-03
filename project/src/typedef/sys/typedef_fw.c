@@ -2,123 +2,287 @@
 #include "typedef_fw.h"
 #include <stdlib.h>
 
-TypeInstance fw_def_create(TypeID id) {
-    F_DEF_CREATE_PRM prm = NULL;
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_CREATE, .argstruct = &prm };
-    t_typeinstance_callfunc(id,&call);
+InstanceReference r_create(TypeID id){
+    if(t_typedef_exists(id)){
 
-    
-    TypeInstance instance = { id, NULL };
+        TypeInstance* instance = malloc(sizeof(TypeInstance));
+        instance->id = id;
+        instance->references = 0;
+        instance->data = NULL;
 
-    if (call.code != FUN_OK) {
-        instance.id = T_NULL;
-        instance.data = NULL;
-        fprintf(stderr, "Error: Creating object of type %u failed. Code: %u\n", id, call.code);
+        F_DEF_CREATE_PRM prm = { .ret = instance };
+
+        FunCall c = {
+            .target = FID_DEF_CREATE,
+            .code = FUN_OK,
+            .argstruct = &prm
+        };
+        
+        t_typeinstance_callfunc(id, &c);
+
+        if(c.code != FUN_OK){
+            free(instance);
+            return R_NULL;
+        }
+
+        instance->id = id;
+        
+        return r_createfor(instance);
+
     }
     else{
-        instance.data = prm;
-    }
-
-    return instance;
-}
-
-void fw_def_destroy(TypeInstance* instance) {
-    if (!t_typeinstance_isvalid(instance)) {
-        fprintf(stderr, "Error: Destroying invalid instance.\n");
-        return;
-    }
-
-    F_DEF_DESTROY_PRM prm = instance->data;
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_DESTROY, .argstruct = &prm };
-    t_typeinstance_callfunc(instance->id,&call);
-
-    if (call.code == FUN_OK) {
-        instance->id = T_NULL;
-        instance->data = NULL;
-    } else {
-        fprintf(stderr, "Error: Destroy failed. Code: %u\n", call.code);
+        return (InstanceReference){NULL};
     }
 }
 
-void fw_def_tostring(TypeInstance* instance, char* buffer, size_t buffer_length) {
-    if (!t_typeinstance_isvalid(instance)) {
-        fprintf(stderr, "Error: Invalid instance.\n");
-        return;
+void r_forget(InstanceReference* ref){
+    if(ref!=NULL){
+        if(!r_isnull(*ref)){
+            ref->ptr->references--;
+            if(ref->ptr->references == 0){
+                TypeInstance* i = ref->ptr;
+
+                if(i->data!=NULL){
+                    F_DEF_DESTROY_PRM prm = { .ptr = i };
+                    FunCall c = {
+                        .target = FID_DEF_DESTROY,
+                        .code = FUN_OK,
+                        .argstruct = &prm
+                    };
+                    t_typeinstance_callfunc(i->id, &c);
+                    if(c.code != FUN_OK){
+                        fprintf(stderr, "ERROR: r_forget() : FUN_ERR_%u", c.code);
+                    }
+                    
+                }
+
+                free(i);
+            }
+            
+        }
+        *ref = (InstanceReference){NULL};
     }
-
-    F_DEF_TOSTRING_PRM prm = { .data= instance, .buffer= buffer, .buffer_length = buffer_length };
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_TOSTRING, .argstruct = &prm };
-    t_typeinstance_callfunc(instance->id,&call);
 }
 
-void fw_def_print(TypeInstance* instance, FILE* out, int buffersize) {
-    char* buffer = malloc(buffersize);
-    fw_def_tostring(instance, buffer, buffersize);
-    fprintf(out, "%s\n", buffer);
-    free(buffer);
-}
-
-bool fw_def_serialize(TypeInstance* from, MemoryBlock* to) {
-    if (!t_typeinstance_isvalid(from)) {
-        fprintf(stderr, "Error: Invalid instance.\n");
-        return false;
+void r_destroy(InstanceReference ref){
+    if(r_isvalid(ref)){
+        TypeInstance* i = ref.ptr;
+        if(i->data!=NULL){
+            F_DEF_DESTROY_PRM prm = { .ptr = i };
+            FunCall c = {
+                .target = FID_DEF_DESTROY,
+                .code = FUN_OK,
+                .argstruct = &prm
+            };
+            t_typeinstance_callfunc(i->id, &c);
+            if(c.code != FUN_OK){
+                fprintf(stderr, "ERROR: r_destroy() : FUN_ERR_%u", c.code);
+            }
+            i->data = NULL;
+        }
     }
-
-    memory_block_ensurespaceforwrite(to, sizeof(TypeID)*2);
-    memory_block_write(to, &from->id, sizeof(TypeID));
-    F_DEF_SERIALIZE_PRM prm = { from->data, to };
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_SERIALIZE, .argstruct = &prm };
-    t_typeinstance_callfunc(from->id,&call);
-    return call.code == FUN_OK;
 }
 
-bool fw_def_deserialize(TypeInstance* to, MemoryBlock* from) {
-    if (!t_typeinstance_isvalid(to)) {
-        fprintf(stderr, "Error: Invalid instance.\n");
-        return false;
+InstanceReference r_createfrom(InstanceReference ref){
+    if(r_isvalid(ref)){
+        ref.ptr->references++;
+        return ref;
     }
-
-    TypeID type;
-    memory_block_read(from, &type, sizeof(type));
-    if (type != to->id) {
-        fprintf(stderr, "Error: Type mismatch.\n");
-        return false;
+    return (InstanceReference){NULL};
+}
+void r_setfrom(InstanceReference target, InstanceReference value){
+    if(r_isvalid(value)){
+        r_forget(&target);
+        target.ptr = value.ptr;
+        target.ptr->references++;
     }
-
-    F_DEF_DESERIALIZE_PRM prm = { to->data, from };
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_DESERIALIZE, .argstruct = &prm };
-    t_typeinstance_callfunc(to->id,&call);
-    to->data = prm.to;
-    return call.code == FUN_OK;
 }
 
-TypeInstance fw_def_createdeserialized(MemoryBlock* from) {
-    TypeID id;
-    memory_block_peek(from, &id, sizeof(id));
-    TypeInstance instance = fw_def_create(id);
-    if (!t_typeinstance_isvalid(&instance)) return instance;
-
-    if (!fw_def_deserialize(&instance, from)) {
-        fprintf(stderr, "Error: Deserialization failed.\n");
+InstanceReference r_createfor(TypeInstance* i){
+    if(i!=NULL){
+        InstanceReference r = {i};
+        i->references++;
+        return r;
     }
-    return instance;
+    return (InstanceReference){NULL};
 }
 
-bool fw_def_hassub(TypeInstance* instance, SubID subID) {
-    if (!t_typeinstance_isvalid(instance)) return false;
+void r_def_tostring(InstanceReference instance, char* buffer, size_t buffer_length){
+    if(r_isnull(instance)){
+        snprintf(buffer, buffer_length, "[ERR!NULL]");
+    }
+    else {
+        if(r_isdangling(instance)){
+            snprintf(buffer, buffer_length, "[ERR!DANGLING]");
+        }
+        else{
+            F_DEF_TOSTRING_PRM prm = { .data = instance.ptr, .buffer = buffer, .buffer_length = buffer_length };
+            FunCall t = {
+                .target = FID_DEF_TOSTRING,
+                .code = FUN_OK,
+                .argstruct = &prm
+            };
+            t_typeinstance_callfunc(instance.ptr->id, &t);
+            if(t.code != FUN_OK){
+                snprintf(buffer, buffer_length, "[ERR!%u]", t.code);   
+            }
+        }
+    }
+}
+void r_def_print(InstanceReference instance, FILE* out, int buffersize){
+    if(r_isnull(instance)){
+        fprintf(out, "[ERR!NULL]");
+    }
+    else {
+        char buffer[buffersize];
+        r_def_tostring(instance, buffer, buffersize);
+        fprintf(out, "(%s (%lld) : ( %s ) )\n", definition_bank[instance.ptr->id].name, instance.ptr->references, buffer);
+    }
+}
+bool r_def_serialize(InstanceReference from, MemoryBlock* to){
+    if(r_isvalid(from)){
 
-    F_DEF_HASSUB_PRM prm = {.instance = instance, .ret = false, .subID = subID };
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_HASSUB, .argstruct = &prm };
-    t_typeinstance_callfunc(instance->id,&call);
-    return prm.ret;
+        TypeID id = from.ptr->id;
+        memory_block_write(to,&id,sizeof(TypeID));
+
+        F_DEF_SERIALIZE_PRM prm = { .from = from.ptr->data, .to = to };
+        FunCall t = {
+            .target = FID_DEF_SERIALIZE,
+            .code = FUN_OK,
+            .argstruct = &prm
+        };
+
+        t_typeinstance_callfunc(id, &t);
+        if(t.code != FUN_OK){
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+bool r_def_deserialize(InstanceReference to, MemoryBlock* from, bool checktid){
+    if(r_isvalid(to)){
+
+        TypeID id = T_NULL;
+        if(checktid){
+            memory_block_read(from,&id,sizeof(TypeID));
+            if(id == T_NULL){
+                return false;
+            }
+            if(to.ptr->id != id){
+                return false;
+            }
+        }
+        else{
+            id=to.ptr->id;
+        }
+
+        F_DEF_DESERIALIZE_PRM prm = { .to = to.ptr->data, .from = from };
+        FunCall t = {
+            .target = FID_DEF_DESERIALIZE,
+            .code = FUN_OK,
+            .argstruct = &prm
+        };
+        t_typeinstance_callfunc(id, &t);
+        if(t.code != FUN_OK){
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+InstanceReference r_def_createdeserialized(MemoryBlock* from){
+    InstanceReference ret = {NULL};
+
+    TypeID id = T_NULL;
+    memory_block_read(from,&id,sizeof(TypeID));
+    if(id == T_NULL){
+        return ret;
+    }
+    ret = r_create(id);
+    if(r_isvalid(ret)){
+        r_def_deserialize(ret,from,false);
+    }
+    return ret;
+}
+bool r_def_hassub(InstanceReference instance, SubID subID){
+    if(r_isvalid(instance)){
+
+        F_DEF_HASSUB_PRM prm = { .instance = instance.ptr->data, .subID = subID };
+        FunCall t = {
+            .target = FID_DEF_HASSUB,
+            .code = FUN_OK,
+            .argstruct = &prm
+        };
+        t_typeinstance_callfunc(instance.ptr->id, &t);
+        if(t.code != FUN_OK){
+            return false;
+        }
+        return prm.ret;
+
+    }
+    return false;
 }
 
-TypeInstance* fw_def_getsub(TypeInstance* instance, SubID subID, bool check) {
-    if (!t_typeinstance_isvalid(instance)) return NULL;
-    if (check && !fw_def_hassub(instance, subID)) return NULL;
+TypeInstance* i_def_getsub(TypeInstance* i, SubID subID, bool check){
+    if(i!=NULL){
+        F_DEF_GETSUB_PRM prm = { .instance = i, .subID = subID };
+        FunCall t = {
+            .target = FID_DEF_GETSUB,
+            .code = FUN_OK,
+            .argstruct = &prm
+        };
+        t_typeinstance_callfunc(i->id, &t);
+        if(t.code != FUN_OK){
+            return NULL;
+        }
+        return prm.ret;
+    }
+    return NULL;
+}
 
-    F_DEF_GETSUB_PRM prm = { .instance = instance, .ret = NULL, .subID = subID };
-    FunCall call = { .code = FUN_OK, .target = FID_DEF_GETSUB, .argstruct = &prm };
-    t_typeinstance_callfunc(instance->id,&call);
-    return prm.ret;
+TypeInstance* r_def_getsub(InstanceReference instance, SubID subID, bool check){
+    if(r_isvalid(instance)){
+
+        if(check){
+            if(!r_def_hassub(instance,subID)){
+                return NULL;
+            }
+        }
+
+        F_DEF_GETSUB_PRM prm = { .instance = instance.ptr, .subID = subID };
+        FunCall t = {
+            .target = FID_DEF_GETSUB,
+            .code = FUN_OK,
+            .argstruct = &prm
+        };
+        t_typeinstance_callfunc(instance.ptr->id, &t);
+        if(t.code != FUN_OK){
+            return NULL;
+        }
+        return prm.ret;
+
+    }
+    return NULL;
+}
+TypeInstance* r_getself(InstanceReference ref, TypeID type){
+    if(r_isvalid(ref)){
+        TypeInstance* sub = r_def_getsub(ref,t_formsub(type,V_LOCAL_SELF),true);
+        if(sub==NULL){
+            return NULL;
+        }
+        return sub;
+    }
+    return NULL;
+}
+
+TypeInstance* i_getself(TypeInstance* i, TypeID type){
+    if(i!=NULL){
+        TypeInstance* sub = i_def_getsub(i,t_formsub(type,V_LOCAL_SELF),true);
+        if(sub==NULL){
+            return NULL;
+        }
+        return sub;
+    }
+    return NULL;
 }
