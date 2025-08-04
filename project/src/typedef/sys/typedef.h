@@ -141,12 +141,12 @@ typedef struct F_DEF_TOSTRING_PRM {
 } F_DEF_TOSTRING_PRM;
 
 typedef struct F_DEF_SERIALIZE_PRM {
-    void* from;
+    TypeInstance* from;
     MemoryBlock* to;
 } F_DEF_SERIALIZE_PRM;
 
 typedef struct F_DEF_DESERIALIZE_PRM {
-    void* to;
+    TypeInstance* to;
     MemoryBlock* from;
 } F_DEF_DESERIALIZE_PRM;
 
@@ -214,7 +214,7 @@ static inline bool t_typeinstance_isvalid(TypeInstance* instance) {
 #define DEF_FUN(Name, TypeName, LocalID, StructBody)   \
     enum { FID_LOCAL_##TypeName##_##Name = LocalID }; \
     enum { FID_##TypeName##_##Name = t_formfun(T_##TypeName, FID_LOCAL_##TypeName##_##Name) }; \
-    typedef struct F_##TypeName##_##Name##_PRM { StructBody } F_##TypeName##_##Name##_PRM
+    typedef struct F_##TypeName##_##Name##_PRM { StructBody } F_##TypeName##_##Name##_PRM 
 
 
 // Usage:
@@ -225,7 +225,6 @@ static inline bool t_typeinstance_isvalid(TypeInstance* instance) {
 
 #define IMP_FUN(Name, TypeName)                                  \
     void f_##TypeName##_imp_##Name(F_##Name##_PRM* prm, char* code)
-
     
 
 #define BEGIN_TYPE_FUNCTIONS(TypeName) \

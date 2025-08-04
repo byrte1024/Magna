@@ -6,6 +6,8 @@
 #include "../../util.h"
 #include "../../quicksine.h"
 
+#include "entity.h"
+
 #include <raylib.h>
 #include <raymath.h>
 
@@ -19,11 +21,15 @@ typedef struct Component {
 
 } Component;
 
+typedef struct F_ENTITY_EVENT_CALL_PRM F_ENTITY_EVENT_CALL_PRM;
+
 // === Define functions ===
+
 
 // === Implement functions ===
 
 //Our things
+IMP_FUN(ENTITY_EVENT_CALL         , COMPONENT );
 
 //Default functions
 IMP_FUN(DEF_CREATE                   , COMPONENT );
@@ -36,6 +42,8 @@ IMP_FUN(DEF_GETSUB                   , COMPONENT );
 
 
 BEGIN_TYPE_FUNCTIONS(COMPONENT)
+
+    TYPE_FUNCTION(ENTITY_EVENT_CALL             , COMPONENT )
 
     TYPE_FUNCTION(DEF_CREATE                       , COMPONENT )
     TYPE_FUNCTION(DEF_DESTROY                      , COMPONENT )

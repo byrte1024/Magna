@@ -5,8 +5,11 @@
 #include "component.h"
 
 
+IMP_FUN(ENTITY_EVENT_CALL         , COMPONENT ){
+    
+}
+
 IMP_FUN(DEF_CREATE                   , COMPONENT ){
-    prm = (F_DEF_CREATE_PRM*)prm;
     TypeInstance* i = prm->ret;
 
     if(i == NULL){
@@ -31,19 +34,25 @@ IMP_FUN(DEF_CREATE                   , COMPONENT ){
 IMP_FUN(DEF_DESTROY                  , COMPONENT ){
     TypeInstance* i = prm->ptr;
 
+    Component* c = (Component*)i->data;
+    
+    r_forget(&c->entity);
+
     if(i != NULL && i->data != NULL){
         free(i->data);
     }
     else{
         *code = FUN_ERR_INTERNAL;
     }
+    
     *code = FUN_OK;
 }
 IMP_FUN(DEF_TOSTRING                 , COMPONENT ){
-    TypeInstance* i = prm->data;
-    TypeInstance* ii = i_getself(i,T_COMPONENT);
-    Component* c = (Component*)ii->data;
-
+    Component* c = COMPONENT_get_self_struct(prm->data);
+    if(c == NULL){
+        *code = FUN_ERR_INTERNAL;
+        return;
+    }
 
     //Print values
     sprintf_s(prm->buffer,prm->buffer_length,"%p: kaboom = %.2f, ss = %c",c,c->kaboom,c->ss);
@@ -51,7 +60,7 @@ IMP_FUN(DEF_TOSTRING                 , COMPONENT ){
     *code = FUN_OK;
 }
 IMP_FUN(DEF_SERIALIZE                , COMPONENT ){
-    Component* c = (Component*)(prm->from);
+    Component* c = (Component*)(prm->from->data);
 
     memory_block_write(prm->to,&c->kaboom,sizeof(c->kaboom));
     memory_block_write(prm->to,&c->ss,sizeof(c->ss));
@@ -59,7 +68,7 @@ IMP_FUN(DEF_SERIALIZE                , COMPONENT ){
     *code = FUN_OK;
 }
 IMP_FUN(DEF_DESERIALIZE              , COMPONENT ){
-    Component* c = (Component*)(prm->to);
+    Component* c = (Component*)(prm->to->data);
 
     memory_block_read(prm->from,&c->kaboom,sizeof(c->kaboom));
     memory_block_read(prm->from,&c->ss,sizeof(c->ss));

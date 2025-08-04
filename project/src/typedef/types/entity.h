@@ -20,14 +20,21 @@ typedef struct Entity {
 
 // === Define functions ===
 
-// - Components -
+// - Definitions -
 
 DEF_FUN(GET_COMPONENT          , ENTITY , 0xC001 , TypeInstance* i; TypeID tid; bool createifnull; TypeInstance* ret_instance;); // Get a component from the entity. acts as a addcomponent function as well
-DEF_FUN(GET_COMPONENT_COUNT    , ENTITY , 0xC002 , TypeInstance* i; size_t* ret_amount;); // Get the amount of components in the entity
+DEF_FUN(GET_COMPONENT_COUNT    , ENTITY , 0xC002 , TypeInstance* i; size_t ret_amount;); // Get the amount of components in the entity
 DEF_FUN(REMOVE_COMPONENT       , ENTITY , 0xC003 , TypeInstance* i; TypeID tid;); // Remove a component from the entity
 DEF_FUN(REMOVE_ALL_COMPONENTS  , ENTITY , 0xC004 , TypeInstance* i;); // Remove all components from the entity
 DEF_FUN(COMPONENT_SHOUT        , ENTITY , 0xC005 , TypeInstance* i; FunCall* call;); // Call a function in all components
+DEF_FUN(EVENT_CALL             , ENTITY , 0xE001 ,FunCall* call; TypeInstance* self;);
 
+// - Wrappers -
+TypeInstance* r_entity_get_component(InstanceReference ref,TypeID tid, bool createifnull);
+size_t r_entity_get_component_count(InstanceReference ref);
+bool r_entity_remove_component(InstanceReference ref,TypeID tid);
+bool r_entity_remove_all_components(InstanceReference ref);
+void r_entity_component_shout(InstanceReference ref,FunCall* call);
 
 // === Implement functions ===
 
@@ -37,6 +44,7 @@ IMP_FUN(ENTITY_GET_COMPONENT_COUNT   , ENTITY );
 IMP_FUN(ENTITY_REMOVE_COMPONENT      , ENTITY );
 IMP_FUN(ENTITY_REMOVE_ALL_COMPONENTS , ENTITY );
 IMP_FUN(ENTITY_COMPONENT_SHOUT       , ENTITY );
+IMP_FUN(ENTITY_EVENT_CALL            , ENTITY );
 
 //Default functions
 IMP_FUN(DEF_CREATE                   , ENTITY );
@@ -63,6 +71,7 @@ BEGIN_TYPE_FUNCTIONS(ENTITY)
     TYPE_FUNCTION(ENTITY_REMOVE_COMPONENT          , ENTITY )
     TYPE_FUNCTION(ENTITY_REMOVE_ALL_COMPONENTS     , ENTITY )
     TYPE_FUNCTION(ENTITY_COMPONENT_SHOUT           , ENTITY )
+    TYPE_FUNCTION(ENTITY_EVENT_CALL                , ENTITY )
 
 END_TYPE_FUNCTIONS(ENTITY)
 

@@ -145,7 +145,7 @@ bool r_def_serialize(InstanceReference from, MemoryBlock* to){
         TypeID id = from.ptr->id;
         memory_block_write(to,&id,sizeof(TypeID));
 
-        F_DEF_SERIALIZE_PRM prm = { .from = from.ptr->data, .to = to };
+        F_DEF_SERIALIZE_PRM prm = { .from = from.ptr, .to = to };
         FunCall t = {
             .target = FID_DEF_SERIALIZE,
             .code = FUN_OK,
@@ -177,7 +177,7 @@ bool r_def_deserialize(InstanceReference to, MemoryBlock* from, bool checktid){
             id=to.ptr->id;
         }
 
-        F_DEF_DESERIALIZE_PRM prm = { .to = to.ptr->data, .from = from };
+        F_DEF_DESERIALIZE_PRM prm = { .to = to.ptr, .from = from };
         FunCall t = {
             .target = FID_DEF_DESERIALIZE,
             .code = FUN_OK,

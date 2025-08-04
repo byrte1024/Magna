@@ -117,6 +117,42 @@ int main() {
         t_typedef_lock();
     }
 
+    InstanceReference r = r_create(T_ENTITY);
+
+    r_def_print(r,stdout,255);
+
+    InstanceReference c = r_createfor(r_entity_get_component(r,T_COMPONENT,true));
+
+    r_def_print(c,stdout,255);
+
+    Component* comp = COMPONENT_get_self_struct(c.ptr);
+    comp->kaboom=4.20f;
+    comp->ss = '?';
+
+    r_def_print(c,stdout,255);
+
+    r_def_print(r,stdout,255); 
+
+    MemoryBlock m = { 0 };
+
+    r_def_serialize(r,&m);
+    memory_block_dump(&m,1024,stdout);
+
+    memory_block_seek_to_start(&m);
+
+    InstanceReference r2 = r_def_createdeserialized(&m);
+
+    r_def_print(r2,stdout,255);
+
+    SaveFileData("test.magna",m.data,m.capacity);
+
+    m.data = (char*) LoadFileData("test.magna",(int*)&m.capacity);
+
+    memory_block_seek_to_start(&m);
+
+    InstanceReference r3 = r_def_createdeserialized(&m);
+
+    r_def_print(r3,stdout,255);
 
     getchar();
 
@@ -148,6 +184,8 @@ int main() {
 
     CloseWindow();
 */
+
+
 
     return 0;
 }
