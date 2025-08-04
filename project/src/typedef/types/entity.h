@@ -30,6 +30,7 @@ DEF_FUN(COMPONENT_SHOUT        , ENTITY , 0xC005 , TypeInstance* i; FunCall* cal
 DEF_FUN(EVENT_CALL             , ENTITY , 0xE001 ,FunCall* call; TypeInstance* self;);
 
 // - Wrappers -
+
 TypeInstance* r_entity_get_component(InstanceReference ref,TypeID tid, bool createifnull);
 size_t r_entity_get_component_count(InstanceReference ref);
 bool r_entity_remove_component(InstanceReference ref,TypeID tid);
